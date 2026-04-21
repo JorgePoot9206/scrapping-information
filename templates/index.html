@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Web Scraper</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:        #F8FAFC;
+      --surface:   #FFFFFF;
+      --border:    #E2E8F0;
+      --border-md: #CBD5E1;
+      --text:      #0F172A;
+      --text-sm:   #475569;
+      --text-xs:   #94A3B8;
+      --accent:    #4F46E5;
+      --accent-h:  #4338CA;
+      --accent-bg: #EEF2FF;
+      --red:       #DC2626;
+      --yellow:    #B45309;
+      --yellow-bg: #FFFBEB;
+    }
+    * { font-family: 'Inter', system-ui, sans-serif; }
+    .tab-btn        { position: relative; color: var(--text-sm); transition: color .15s; }
+    .tab-btn::after { content:''; position:absolute; bottom:0; left:0; right:0; height:2px; background:transparent; transition: background .15s; }
+    .tab-btn.active { color: var(--accent); font-weight: 600; }
+    .tab-btn.active::after { background: var(--accent); }
+    .tab-btn:hover  { color: var(--text); }
+    .tab-panel        { display: none; }
+    .tab-panel.active { display: block; }
+    .loader { border-top-color: var(--accent); }
+    input:focus { outline: none; box-shadow: 0 0 0 3px #4F46E520; border-color: var(--accent) !important; }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-md); border-radius: 99px; }
+  </style>
+</head>
+<body style="background:var(--bg); color:var(--text);" class="min-h-screen">
+
+  <!-- Header -->
+  <header style="background:var(--surface); border-bottom:1px solid var(--border);" class="py-4 px-6 flex items-center gap-3">
+    <div style="background:var(--accent-bg); border-radius:10px;" class="p-2">
+      <svg class="w-5 h-5" style="color:var(--accent)" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
+      </svg>
+    </div>
+    <div>
+      <h1 class="text-base font-semibold" style="color:var(--text)">Web Scraper</h1>
+      <p class="text-xs" style="color:var(--text-xs)">Extracción de contenido web</p>
+    </div>
+    <div class="ml-auto flex items-center gap-2">
+      <span style="background:var(--accent-bg); color:var(--accent); border-radius:99px;" class="text-xs font-medium px-3 py-1">requests + playwright</span>
+    </div>
+  </header>
+
+  <main class="max-w-4xl mx-auto px-4 py-10">
+
+    <!-- URL Input -->
+    <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:0 1px 3px rgba(0,0,0,.06);" class="p-6">
+      <label class="block text-sm font-medium mb-2" style="color:var(--text-sm)">URL de la página</label>
+      <div class="flex gap-3">
+        <div class="flex-1 relative">
+          <svg class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style="color:var(--text-xs)" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 0 0-5.656 0l-4 4a4 4 0 1 0 5.656 5.656l1.102-1.101m4.242-4.243a4 4 0 0 0 5.656 0l4-4a4 4 0 1 0-5.656-5.656l-1.1 1.1"/>
+          </svg>
+          <input id="urlInput" type="text"
+            placeholder="https://ejemplo.com"
+            style="width:100%; background:var(--bg); border:1px solid var(--border-md); border-radius:10px; padding:10px 12px 10px 34px; font-size:.875rem; color:var(--text); transition:border .15s;" />
+        </div>
+        <button id="scrapeBtn"
+          style="background:var(--accent); color:#fff; border-radius:10px; padding:10px 20px; font-size:.875rem; font-weight:600; border:none; cursor:pointer; transition:background .15s; white-space:nowrap;"
+          onmouseover="if(!this.disabled)this.style.background='var(--accent-h)'"
+          onmouseout="if(!this.disabled)this.style.background='var(--accent)'">
+          Extraer info
+        </button>
+      </div>
+      <p id="errorMsg"  style="color:var(--red);  font-size:.8rem; margin-top:8px;" class="hidden"></p>
+      <p id="cacheMsg"  style="color:var(--yellow); background:var(--yellow-bg); border-radius:8px; padding:8px 12px; font-size:.8rem; margin-top:8px;" class="hidden"></p>
+    </div>
+
+    <!-- Loading -->
+    <div id="loading" class="hidden flex-col items-center justify-center py-16 gap-3">
+      <div class="loader w-10 h-10 rounded-full animate-spin" style="border:3px solid var(--border); border-top-color:var(--accent);"></div>
+      <p class="text-sm" style="color:var(--text-sm)">Extrayendo información...</p>
+    </div>
+
+    <!-- Results -->
+    <div id="results" class="hidden mt-6 space-y-4">
+
+      <!-- Meta info -->
+      <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:0 1px 3px rgba(0,0,0,.06);" class="p-6">
+        <div class="flex items-start justify-between gap-4">
+          <div class="flex-1 min-w-0">
+            <h2 id="pageTitle" class="text-lg font-semibold mb-1 truncate" style="color:var(--text)"></h2>
+            <p id="pageMeta" class="text-sm leading-relaxed" style="color:var(--text-sm)"></p>
+          </div>
+        </div>
+        <div id="fontsRow" class="mt-4 hidden">
+          <p class="text-xs font-medium mb-2" style="color:var(--text-xs)">Tipografías detectadas</p>
+          <div id="fontsList" class="flex flex-wrap gap-2"></div>
+        </div>
+        <div class="flex items-center gap-3 mt-4 pt-4" style="border-top:1px solid var(--border)">
+          <span class="text-xs" style="color:var(--text-xs)">Método:</span>
+          <span id="method" class="text-xs font-medium px-2 py-0.5 rounded-md" style="background:var(--accent-bg); color:var(--accent)"></span>
+          <a id="pageUrl" href="#" target="_blank"
+            class="text-xs ml-auto truncate max-w-xs hover:underline" style="color:var(--accent)"></a>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:0 1px 3px rgba(0,0,0,.06); overflow:hidden;">
+        <div class="flex overflow-x-auto" style="border-bottom:1px solid var(--border); padding:0 8px;">
+          <button class="tab-btn active px-4 py-3 text-sm" data-tab="content">Contenido</button>
+          <button class="tab-btn px-4 py-3 text-sm" data-tab="links">Links</button>
+          <button class="tab-btn px-4 py-3 text-sm" data-tab="images">Imágenes</button>
+          <button class="tab-btn px-4 py-3 text-sm" data-tab="tables">Tablas</button>
+        </div>
+
+        <!-- Content -->
+        <div id="tab-content" class="tab-panel active p-5 space-y-0.5 max-h-[520px] overflow-y-auto">
+          <p class="text-sm" style="color:var(--text-xs)">Sin datos</p>
+        </div>
+
+        <!-- Links -->
+        <div id="tab-links" class="tab-panel p-5 space-y-1 max-h-[520px] overflow-y-auto">
+          <p class="text-sm" style="color:var(--text-xs)">Sin datos</p>
+        </div>
+
+        <!-- Images -->
+        <div id="tab-images" class="tab-panel p-5 max-h-[520px] overflow-y-auto">
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-3"></div>
+        </div>
+
+        <!-- Tables -->
+        <div id="tab-tables" class="tab-panel p-5 space-y-6 max-h-[520px] overflow-y-auto">
+          <p class="text-sm" style="color:var(--text-xs)">Sin datos</p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+<script>
+  const urlInput  = document.getElementById("urlInput");
+  const scrapeBtn = document.getElementById("scrapeBtn");
+  const loading   = document.getElementById("loading");
+  const results   = document.getElementById("results");
+  const errorMsg  = document.getElementById("errorMsg");
+  const cacheMsg  = document.getElementById("cacheMsg");
+
+  // ── Configuración de rate limit ───────────────────────────────
+  const RATE_LIMIT     = 2;     // intentos libres por URL
+  const BLOCK_SOFT_SEC = 15;    // primer bloqueo (segundos)
+  const BLOCK_HARD_SEC = 3600;  // bloqueo duro tras reintentar (1 hora)
+  const COOKIE_NAME    = "scraper_rl";
+  const COOKIE_DAYS    = 1;
+
+  // ── Cookie helpers ────────────────────────────────────────────
+  function loadRLData() {
+    const match = document.cookie.match(/(?:^|; )scraper_rl=([^;]*)/);
+    if (!match) return {};
+    try { return JSON.parse(decodeURIComponent(match[1])); } catch { return {}; }
+  }
+
+  function saveRLData(data) {
+    const expires = new Date(Date.now() + COOKIE_DAYS * 864e5).toUTCString();
+    document.cookie = `${COOKIE_NAME}=${encodeURIComponent(JSON.stringify(data))};expires=${expires};path=/`;
+  }
+
+  // Hash corto de la URL para usar como clave en la cookie
+  function urlKey(url) {
+    let h = 0;
+    for (let i = 0; i < url.length; i++) h = (Math.imul(31, h) + url.charCodeAt(i)) | 0;
+    return "u" + Math.abs(h).toString(36);
+  }
+
+  // ── UI helpers ────────────────────────────────────────────────
+  function showError(msg)    { errorMsg.textContent = msg; errorMsg.classList.remove("hidden"); }
+  function clearError()      { errorMsg.textContent = ""; errorMsg.classList.add("hidden"); }
+  function showCacheMsg(msg) { cacheMsg.innerHTML = `<span style="margin-right:6px">⚠️</span>${msg}`; cacheMsg.classList.remove("hidden"); }
+  function clearCacheMsg()   { cacheMsg.innerHTML = ""; cacheMsg.classList.add("hidden"); }
+
+  let countdownInterval = null;
+
+  function fmtTime(s) {
+    if (s >= 3600) {
+      const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60;
+      return `${h}h ${String(m).padStart(2,"0")}m ${String(ss).padStart(2,"0")}s`;
+    }
+    if (s >= 60) {
+      const m = Math.floor(s / 60), ss = s % 60;
+      return `${m}m ${String(ss).padStart(2,"0")}s`;
+    }
+    return `${s}s`;
+  }
+
+  function startCountdown(totalSeconds) {
+    if (countdownInterval) clearInterval(countdownInterval);
+    scrapeBtn.disabled = true;
+    scrapeBtn.style.background = "#94A3B8";
+    scrapeBtn.style.cursor = "not-allowed";
+    let remaining = totalSeconds;
+    scrapeBtn.textContent = `Bloqueado (${fmtTime(remaining)})`;
+    countdownInterval = setInterval(() => {
+      remaining--;
+      if (remaining <= 0) {
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+        scrapeBtn.disabled = false;
+        scrapeBtn.style.background = "var(--accent)";
+        scrapeBtn.style.cursor = "pointer";
+        scrapeBtn.textContent = "Extraer info";
+        clearCacheMsg();
+      } else {
+        scrapeBtn.textContent = `Bloqueado (${fmtTime(remaining)})`;
+      }
+    }, 1000);
+  }
+
+  // Restaura el bloqueo si la cookie dice que aún está activo al cargar/refrescar
+  function restoreBlockIfActive(url) {
+    if (!url) return;
+    const entry = loadRLData()[urlKey(url)];
+    if (!entry || !entry.blockedUntil) return;
+    const remaining = Math.ceil((entry.blockedUntil - Date.now()) / 1000);
+    if (remaining > 0) {
+      showCacheMsg(entry.hardBlocked
+        ? "🚫 Bloqueado por 1 hora por consultas repetidas al mismo sitio."
+        : "⚠️ Demasiadas consultas. Te mostramos el resultado en caché mientras esperas.");
+      startCountdown(remaining);
+    }
+  }
+
+  // Revisa el bloqueo cada vez que cambia la URL en el input
+  urlInput.addEventListener("input", () => {
+    if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
+    scrapeBtn.disabled = false;
+    scrapeBtn.style.background = "var(--accent)";
+    scrapeBtn.style.cursor = "pointer";
+    scrapeBtn.textContent = "Extraer info";
+    clearCacheMsg();
+    restoreBlockIfActive(urlInput.value.trim());
+  });
+
+  // Tab switching
+  document.querySelectorAll(".tab-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+      document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+      btn.classList.add("active");
+      document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
+    });
+  });
+
+function render(data) {
+    document.getElementById("pageTitle").textContent = data.title || "(sin título)";
+    document.getElementById("pageMeta").textContent  = data.meta_description || "";
+    document.getElementById("method").textContent    = data.method || (data.cached ? "caché" : "");
+    const urlEl = document.getElementById("pageUrl");
+    urlEl.href        = data.url;
+    urlEl.textContent = data.url;
+
+    // Fuentes
+    const fontsRow  = document.getElementById("fontsRow");
+    const fontsList = document.getElementById("fontsList");
+    if (data.fonts && data.fonts.length) {
+      fontsList.innerHTML = data.fonts.map(f =>
+        `<span style="font-size:.75rem; padding:3px 10px; border-radius:99px; background:#F1F5F9; color:var(--text-sm); border:1px solid var(--border); font-family:'${esc(f)}',sans-serif;">${esc(f)}</span>`
+      ).join("");
+      fontsRow.classList.remove("hidden");
+    } else {
+      fontsRow.classList.add("hidden");
+    }
+
+    const TAG_STYLES = {
+      h1: { bg:"#EEF2FF", color:"#4338CA", textColor:"var(--text)",    fw:"700" },
+      h2: { bg:"#EEF2FF", color:"#4F46E5", textColor:"var(--text)",    fw:"700" },
+      h3: { bg:"#EEF2FF", color:"#6366F1", textColor:"var(--text)",    fw:"600" },
+      h4: { bg:"#EEF2FF", color:"#818CF8", textColor:"var(--text)",    fw:"600" },
+      h5: { bg:"#EEF2FF", color:"#A5B4FC", textColor:"var(--text-sm)", fw:"600" },
+      h6: { bg:"#EEF2FF", color:"#C7D2FE", textColor:"var(--text-sm)", fw:"600" },
+      p:         { bg:"#F1F5F9", color:"#64748B", textColor:"var(--text-sm)", fw:"400" },
+      li:        { bg:"#F0FDF4", color:"#16A34A", textColor:"var(--text-sm)", fw:"400" },
+      strong:    { bg:"#FFF7ED", color:"#C2410C", textColor:"var(--text)",    fw:"600" },
+      b:         { bg:"#FFF7ED", color:"#C2410C", textColor:"var(--text)",    fw:"600" },
+      em:        { bg:"#FDF4FF", color:"#9333EA", textColor:"var(--text-sm)", fw:"400" },
+      blockquote:{ bg:"#F0F9FF", color:"#0369A1", textColor:"var(--text-sm)", fw:"400" },
+      figcaption:{ bg:"#F8FAFC", color:"#94A3B8", textColor:"var(--text-xs)", fw:"400" },
+      dt:        { bg:"#FAFAF9", color:"#78716C", textColor:"var(--text)",    fw:"600" },
+      dd:        { bg:"#FAFAF9", color:"#A8A29E", textColor:"var(--text-sm)", fw:"400" },
+      caption:   { bg:"#F8FAFC", color:"#94A3B8", textColor:"var(--text-xs)", fw:"400" },
+    };
+
+    const cPanel = document.getElementById("tab-content");
+    cPanel.innerHTML = (data.content && data.content.length)
+      ? data.content.map(item => {
+          const s = TAG_STYLES[item.tag] || TAG_STYLES.p;
+          const label = `<span style="font-family:monospace; font-size:.68rem; padding:2px 7px; border-radius:5px; background:${s.bg}; color:${s.color}; margin-right:8px; flex-shrink:0; white-space:nowrap; font-weight:600;">&lt;${esc(item.tag)}&gt;</span>`;
+          return `<div style="display:flex; align-items:baseline; gap:4px; padding:7px 0; border-bottom:1px solid var(--border);">
+            ${label}
+            <span style="font-size:.875rem; color:${s.textColor}; font-weight:${s.fw}; line-height:1.6;">${esc(item.text)}</span>
+          </div>`;
+        }).join("")
+      : `<p style="font-size:.875rem; color:var(--text-xs)">Sin contenido</p>`;
+
+    const lPanel = document.getElementById("tab-links");
+    lPanel.innerHTML = (data.links && data.links.length)
+      ? data.links.map(l =>
+          `<div style="display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--border);">
+            <svg style="width:13px; height:13px; color:var(--accent); flex-shrink:0;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 0 0-5.656 0l-4 4a4 4 0 1 0 5.656 5.656l1.102-1.101"/>
+              <path stroke-linecap="round" stroke-linejoin="round" d="M14.828 14.828a4 4 0 0 0 5.656 0l4-4a4 4 0 1 0-5.656-5.656l-1.1 1.1"/>
+            </svg>
+            <a href="${esc(l.url)}" target="_blank"
+               style="font-size:.875rem; color:var(--accent); text-decoration:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:260px;"
+               onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${esc(l.text)}</a>
+            <span style="font-size:.75rem; color:var(--text-xs); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:none;" class="sm:block">${esc(l.url)}</span>
+          </div>`).join("")
+      : `<p style="font-size:.875rem; color:var(--text-xs)">Sin links</p>`;
+
+    const iGrid = document.querySelector("#tab-images .grid");
+    iGrid.innerHTML = (data.images && data.images.length)
+      ? data.images.map(img =>
+          `<div style="background:var(--bg); border:1px solid var(--border); border-radius:12px; overflow:hidden;">
+            <img src="${esc(img.src)}" alt="${esc(img.alt)}"
+                 style="width:100%; height:128px; object-fit:cover;" loading="lazy"
+                 onerror="this.parentElement.remove()" />
+            ${img.alt ? `<p style="font-size:.7rem; color:var(--text-xs); padding:5px 8px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(img.alt)}</p>` : ""}
+          </div>`).join("")
+      : `<p style="font-size:.875rem; color:var(--text-xs)">Sin imágenes</p>`;
+
+    const tPanel = document.getElementById("tab-tables");
+    tPanel.innerHTML = (data.tables && data.tables.length)
+      ? data.tables.map((rows, i) =>
+          `<div>
+            <p style="font-size:.75rem; color:var(--text-xs); margin-bottom:8px; font-weight:500;">Tabla ${i + 1}</p>
+            <div style="overflow-x:auto; border:1px solid var(--border); border-radius:10px;">
+              <table style="width:100%; font-size:.875rem; border-collapse:collapse;">
+                ${rows.map((cells, ri) =>
+                  `<tr style="${ri === 0 ? `background:var(--bg); font-weight:600;` : `border-top:1px solid var(--border);`}">
+                    ${cells.map(c => `<td style="padding:9px 12px; color:${ri === 0 ? "var(--text)" : "var(--text-sm)"};">${esc(c)}</td>`).join("")}
+                  </tr>`).join("")}
+              </table>
+            </div>
+          </div>`).join("")
+      : `<p style="font-size:.875rem; color:var(--text-xs)">Sin tablas</p>`;
+  }
+
+  function esc(str) {
+    return String(str || "")
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  async function doScrape() {
+    const url = urlInput.value.trim();
+    if (!url) { showError("Ingresa una URL."); return; }
+    clearError();
+    clearCacheMsg();
+
+    // ── Leer estado de la cookie ──
+    const rlData = loadRLData();
+    const key    = urlKey(url);
+    const entry  = rlData[key] || { hits: 0, blockedUntil: 0, warned: false, hardBlocked: false };
+    const now    = Date.now();
+
+    // Bloqueo activo (incluso tras refrescar)
+    if (entry.blockedUntil > now) {
+      const remaining = Math.ceil((entry.blockedUntil - now) / 1000);
+      showCacheMsg(entry.hardBlocked
+        ? "🚫 Bloqueado por 1 hora por consultas repetidas al mismo sitio."
+        : "⚠️ Demasiadas consultas. Te mostramos el resultado en caché mientras esperas.");
+      startCountdown(remaining);
+      return;
+    }
+
+    // Incrementar hits
+    entry.hits += 1;
+
+    let blockSeconds = 0;
+
+    if (entry.hits > RATE_LIMIT) {
+      if (entry.warned) {
+        // Ya pasó el bloqueo suave y volvió a intentar → bloqueo duro 1 hora
+        blockSeconds       = BLOCK_HARD_SEC;
+        entry.hardBlocked  = true;
+        entry.blockedUntil = now + blockSeconds * 1000;
+        showCacheMsg("🚫 Bloqueado por 1 hora — no se permiten consultas repetidas al mismo sitio.");
+      } else {
+        // Primera vez sobre el límite → aviso + bloqueo suave 15s
+        blockSeconds       = BLOCK_SOFT_SEC;
+        entry.warned       = true;
+        entry.blockedUntil = now + blockSeconds * 1000;
+        showCacheMsg("⚠️ Ya consultaste este sitio varias veces. Te mostraré el resultado en caché — un nuevo intento activará un bloqueo de 1 hora.");
+      }
+    }
+
+    rlData[key] = entry;
+    saveRLData(rlData);
+
+    // Si hay bloqueo duro, no hacer la petición
+    if (entry.hardBlocked && blockSeconds > 0) {
+      startCountdown(blockSeconds);
+      return;
+    }
+
+    // Iniciar countdown sin deshabilitar aún (se hace en finally)
+    if (blockSeconds > 0) startCountdown(blockSeconds);
+
+    results.classList.add("hidden");
+    loading.classList.remove("hidden");
+    loading.classList.add("flex");
+    if (blockSeconds === 0) {
+      scrapeBtn.disabled = true;
+      scrapeBtn.style.background = "#A5B4FC";
+      scrapeBtn.style.cursor = "not-allowed";
+      scrapeBtn.textContent = "Extrayendo...";
+    }
+
+    try {
+      const res  = await fetch("/scrape", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const data = await res.json();
+      if (res.status === 429) {
+        showError("Límite del servidor alcanzado. Espera un momento antes de intentar de nuevo.");
+        return;
+      }
+      if (data.error) { showError(data.error); return; }
+      render(data);
+      results.classList.remove("hidden");
+    } catch (e) {
+      showError("Error de red: " + e.message);
+    } finally {
+      loading.classList.add("hidden");
+      loading.classList.remove("flex");
+      if (blockSeconds === 0) {
+        scrapeBtn.disabled = false;
+        scrapeBtn.style.background = "var(--accent)";
+        scrapeBtn.style.cursor = "pointer";
+        scrapeBtn.textContent = "Extraer info";
+      }
+    }
+  }
+
+  scrapeBtn.addEventListener("click", doScrape);
+  urlInput.addEventListener("keydown", e => { if (e.key === "Enter") doScrape(); });
+</script>
+</body>
+</html>
